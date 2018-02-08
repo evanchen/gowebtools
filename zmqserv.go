@@ -6,6 +6,7 @@ import (
 	//"strings"
 	"strconv"
 	"time"
+	"os"
 )
 
 var g_socket *zmq.Socket
@@ -103,7 +104,7 @@ func send(addr, rpcFuncName, args string) {
 	peerSock, ok := g_sendsocks[addr]
 	if !ok {
 		newSocket, err := zmq.NewSocket(zmq.DEALER)
-		if err {
+		if err != nil {
 			os.Exit(-1)
 		}
 		g_sendsocks[addr] = newSocket
@@ -113,11 +114,11 @@ func send(addr, rpcFuncName, args string) {
 	g_msgId++
 	msgId2str := fmt.Sprintf("%d_%s%d", g_msgId, "gowebserv", 0)
 
-	newSocket.Send(SEND_TYPE_REQ, zmq.SNDMORE)
-	newSocket.Send(msgId2str, zmq.SNDMORE)
-	newSocket.Send(rpcFuncName, zmq.SNDMORE)
-	newSocket.Send(args, zmq.SNDMORE)
-	newSocket.Send("", 0) //addr 为空,不用rpc返回
+	peerSock.Send(SEND_TYPE_REQ, zmq.SNDMORE)
+	peerSock.Send(msgId2str, zmq.SNDMORE)
+	peerSock.Send(rpcFuncName, zmq.SNDMORE)
+	peerSock.Send(args, zmq.SNDMORE)
+	peerSock.Send("", 0) //addr 为空,不用rpc返回
 }
 
 func update() {
