@@ -13,6 +13,7 @@ var g_socket *zmq.Socket
 var g_sendsocks = make(map[string]*zmq.Socket)
 var g_msgId = int(0)
 var selfAddr string
+var enginType = "webserv"
 
 //消息请求类型
 var SEND_TYPE_REQ = "REQ"   //请求
@@ -33,6 +34,9 @@ func StartZmq() {
 	socket, _ := zmq.NewSocket(zmq.ROUTER)
 	g_socket = socket
 	defer closingAllSocks()
+
+	//先向游戏帐号服务器注册
+	send(tarAddr, "DISPATCH:RegisterWebServ", "{[1]=0}") //参数只有一个,gsId = 0
 
 	timer := time.NewTicker(100 * time.Millisecond)
 	for {
@@ -112,7 +116,7 @@ func send(addr, rpcFuncName, args string) {
 	}
 
 	g_msgId++
-	msgId2str := fmt.Sprintf("%d_%s%d", g_msgId, "gowebserv", 0)
+	msgId2str := fmt.Sprintf("%d_%s%d", g_msgId, enginType, 0)
 
 	peerSock.Send(SEND_TYPE_REQ, zmq.SNDMORE)
 	peerSock.Send(msgId2str, zmq.SNDMORE)
@@ -148,6 +152,6 @@ func doFunc(args_str, addr string) {
 	println("doFunc:", args_str, addr)
 
 	if len(addr) > 0 {
-		send(addr, "HandleWebServRet", args_str)
+		send(addr, "DOCMD:HandleWebServRet", args_str)
 	}
 }
