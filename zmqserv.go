@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	zmq "github.com/pebbe/zmq4"
-	//"strings"
-	"strconv"
+	"strings"
+	//"strconv"
 	"time"
 	"os"
 )
@@ -21,18 +21,22 @@ var SEND_TYPE_RESP = "RESP" //返回请求
 
 func StartZmq() {
 	//对端zmq地址
-	servPort := g_conf["servPort"]
-	portInt, _ := strconv.ParseInt(servPort, 10, 32)
+	//servPort := g_conf["servPort"]
+	//portInt, _ := strconv.ParseInt(servPort, 10, 32)
 	tarAddr := g_conf["game_ipc_bind_addr_linux_fmt"]
-	tarAddr = fmt.Sprintf(tarAddr, portInt)
-
+	tarAddr = fmt.Sprintf(tarAddr, 0)
+	tarAddr = strings.TrimPrefix(tarAddr,"\"")
+	tarAddr = strings.TrimSuffix(tarAddr,"\"")
 	//本端地址
 	selfAddr = g_conf["http_ipc_bind_addr_linux"]
-
+	selfAddr = strings.TrimPrefix(selfAddr,"\"")
+	selfAddr = strings.TrimSuffix(selfAddr,"\"")
 	println(tarAddr, selfAddr)
 
 	socket, _ := zmq.NewSocket(zmq.ROUTER)
+	
 	g_socket = socket
+	socket.Bind(selfAddr)
 	defer closingAllSocks()
 
 	//先向游戏帐号服务器注册
@@ -53,7 +57,7 @@ func StartZmq() {
 func recv() bool {
 	identity, err1 := g_socket.Recv(zmq.DONTWAIT)
 	if err1 != nil {
-		fmt.Printf("identity: %v\n", err1)
+		//fmt.Printf("identity: %v\n", err1)
 		return false
 	}
 	if len(identity) == 0 { //没消息
@@ -113,6 +117,7 @@ func send(addr, rpcFuncName, args string) {
 		}
 		g_sendsocks[addr] = newSocket
 		peerSock = newSocket
+		fmt.Printf("%v, %s\n",peerSock.Connect(addr),addr)
 	}
 
 	g_msgId++
