@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"log"
+	"net/http"
 	"sync"
 )
 
@@ -28,7 +28,7 @@ func main() {
 	}()
 
 	//开始zmq定时循环
-	go func () {
+	go func() {
 		defer wg.Done()
 		StartZmq()
 	}()

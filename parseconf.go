@@ -24,7 +24,7 @@ func ParseConf() {
 			line := string(lineBytes)
 			line = strings.TrimSpace(line)
 			if len(line) > 0 {
-				if strings.HasPrefix(line,"return") {
+				if strings.HasPrefix(line, "return") {
 					continue
 				}
 				if strings.Contains(line, "--") || strings.Contains(line, "{") || strings.Contains(line, "}") {
@@ -38,7 +38,7 @@ func ParseConf() {
 				val := sps2[1]
 				val = strings.TrimSpace(val)
 				g_conf[key] = val
-				println(key, val)
+				//println(key, val)
 			}
 		}
 		if err != nil {

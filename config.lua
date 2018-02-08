@@ -29,4 +29,7 @@ return
 	--战斗进程
 	battle_ipc_bind_addr_win = "tcp://127.0.0.1:6997",
 	battle_ipc_bind_addr_linux = "ipc://battle.ipc",
+	--http服务进程
+	http_ipc_bind_addr_win = "tcp://127.0.0.1:6996",
+	http_ipc_bind_addr_linux = "ipc://http.ipc",
 }
