@@ -1,8 +1,8 @@
 package main
 
 import (
-	zmq "github.com/pebbe/zmq4"
 	"fmt"
+	zmq "github.com/pebbe/zmq4"
 	//"strings"
 	"strconv"
 	"time"
@@ -10,6 +10,8 @@ import (
 
 var g_socket *zmq.Socket
 var g_sendsocks = make(map[string]*zmq.Socket)
+var g_msgId = int(0)
+var selfAddr string
 
 //消息请求类型
 var SEND_TYPE_REQ = "REQ"   //请求
@@ -23,7 +25,7 @@ func StartZmq() {
 	tarAddr = fmt.Sprintf(tarAddr, portInt)
 
 	//本端地址
-	selfAddr := g_conf["http_ipc_bind_addr_linux"]
+	selfAddr = g_conf["http_ipc_bind_addr_linux"]
 
 	println(tarAddr, selfAddr)
 
@@ -95,6 +97,29 @@ func recv() bool {
 	return true
 }
 
+//go这一端暂不支持rpc返回值
+//发送方作为 dealer,不用发送identity
+func send(addr, rpcFuncName, args string) {
+	peerSock, ok := g_sendsocks[addr]
+	if !ok {
+		newSocket, err := zmq.NewSocket(zmq.DEALER)
+		if err {
+			os.Exit(-1)
+		}
+		g_sendsocks[addr] = newSocket
+		peerSock = newSocket
+	}
+
+	g_msgId++
+	msgId2str := fmt.Sprintf("%d_%s%d", g_msgId, "gowebserv", 0)
+
+	newSocket.Send(SEND_TYPE_REQ, zmq.SNDMORE)
+	newSocket.Send(msgId2str, zmq.SNDMORE)
+	newSocket.Send(rpcFuncName, zmq.SNDMORE)
+	newSocket.Send(args, zmq.SNDMORE)
+	newSocket.Send("", 0) //addr 为空,不用rpc返回
+}
+
 func update() {
 	count := 100
 	for {
@@ -117,6 +142,11 @@ func closingAllSocks() {
 	}
 }
 
+//完成对端的rpc操作,并返回操作结果
 func doFunc(args_str, addr string) {
 	println("doFunc:", args_str, addr)
+
+	if len(addr) > 0 {
+		send(addr, "HandleWebServRet", args_str)
+	}
 }
