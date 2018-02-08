@@ -27,7 +27,7 @@ func StartZmq() {
 
 	println(tarAddr, selfAddr)
 
-	socket, _ := zmq.NewSocket(zmq.XREP)
+	socket, _ := zmq.NewSocket(zmq.ROUTER)
 	g_socket = socket
 	defer closingAllSocks()
 
@@ -43,45 +43,45 @@ func StartZmq() {
 }
 
 //对应zmq的send,根据 send 的类型有对应数量的 partial msg
-func recv() {
+func recv() bool {
 	identity, err1 := g_socket.Recv(zmq.DONTWAIT)
-	if err1 {
+	if err1 != nil {
 		fmt.Printf("identity: %v\n", err1)
-		return
+		return false
 	}
 	if len(identity) == 0 { //没消息
-		return
+		return false
 	}
 
 	sendType, err2 := g_socket.Recv(zmq.DONTWAIT)
-	if err2 {
+	if err2 != nil {
 		fmt.Printf("sendType: %v\n", err2)
-		return
+		return false
 	}
 
 	if sendType == SEND_TYPE_REQ {
-		msgId2str, err3 := g_socket.Recv(zmq.DONTWAIT)
-		if err3 {
+		_, err3 := g_socket.Recv(zmq.DONTWAIT)
+		if err3 != nil {
 			fmt.Printf("msgId2str: %v\n", err3)
-			return
+			return false
 		}
 
 		rpcFuncName, err4 := g_socket.Recv(zmq.DONTWAIT)
-		if err4 {
+		if err4 != nil {
 			fmt.Printf("rpcFuncName: %v\n", err4)
-			return
+			return false
 		}
 
 		args_str, err5 := g_socket.Recv(zmq.DONTWAIT)
-		if err5 {
+		if err5 != nil {
 			fmt.Printf("args_str: %v\n", err5)
-			return
+			return false
 		}
 
 		addr, err6 := g_socket.Recv(zmq.DONTWAIT)
-		if err6 {
+		if err6 != nil {
 			fmt.Printf("addr: %v\n", err6)
-			return
+			return false
 		}
 
 		if rpcFuncName == "doFunc" {
@@ -91,6 +91,8 @@ func recv() {
 	} else if sendType == SEND_TYPE_RESP {
 		//go这一端暂不支持rpc返回值
 	}
+
+	return true
 }
 
 func update() {
@@ -109,8 +111,8 @@ func update() {
 }
 
 func closingAllSocks() {
-	socket.Close()
-	for k, v := range g_sendsocks {
+	g_socket.Close()
+	for _, v := range g_sendsocks {
 		v.Close()
 	}
 }
