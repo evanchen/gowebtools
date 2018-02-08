@@ -5,8 +5,8 @@ import (
 	zmq "github.com/pebbe/zmq4"
 	"strings"
 	//"strconv"
-	"time"
 	"os"
+	"time"
 )
 
 var g_socket *zmq.Socket
@@ -25,16 +25,15 @@ func StartZmq() {
 	//portInt, _ := strconv.ParseInt(servPort, 10, 32)
 	tarAddr := g_conf["game_ipc_bind_addr_linux_fmt"]
 	tarAddr = fmt.Sprintf(tarAddr, 0)
-	tarAddr = strings.TrimPrefix(tarAddr,"\"")
-	tarAddr = strings.TrimSuffix(tarAddr,"\"")
+	tarAddr = strings.TrimPrefix(tarAddr, "\"")
+	tarAddr = strings.TrimSuffix(tarAddr, "\"")
 	//本端地址
 	selfAddr = g_conf["http_ipc_bind_addr_linux"]
-	selfAddr = strings.TrimPrefix(selfAddr,"\"")
-	selfAddr = strings.TrimSuffix(selfAddr,"\"")
+	selfAddr = strings.TrimPrefix(selfAddr, "\"")
+	selfAddr = strings.TrimSuffix(selfAddr, "\"")
 	println(tarAddr, selfAddr)
 
 	socket, _ := zmq.NewSocket(zmq.ROUTER)
-	
 	g_socket = socket
 	socket.Bind(selfAddr)
 	defer closingAllSocks()
@@ -117,7 +116,7 @@ func send(addr, rpcFuncName, args string) {
 		}
 		g_sendsocks[addr] = newSocket
 		peerSock = newSocket
-		fmt.Printf("%v, %s\n",peerSock.Connect(addr),addr)
+		fmt.Printf("%v, %s\n", peerSock.Connect(addr), addr)
 	}
 
 	g_msgId++

@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-var confpath = "config.lua"
+var confpath = "logic/etc/config.lua"
 var g_conf = make(map[string]string)
 
 func ParseConf() {
