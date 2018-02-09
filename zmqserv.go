@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	zmq "github.com/pebbe/zmq4"
-	"http"
-	"ioutil"
+	"net/http"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -160,7 +160,10 @@ func closingAllSocks() {
 func doFunc(args_str, addr string) {
 	println("doFunc:", args_str, addr)
 	args := decode_luatable_argstr(args_str)
-	retStr := realDo(args...)
+	reqType := args[0]
+	openid := args[1]
+	access_token := args[2]
+	retStr := realDo(reqType,openid,access_token)
 	if len(addr) > 0 {
 		//需要加锁
 		send(addr, "DOCMD:HandleWebServRet", retStr)
@@ -192,7 +195,7 @@ func encode_luatable_argstr(str ...string) string {
 	var inside []string
 	for _, v := range str {
 		num++
-		s := fmt.Printf("[%d]=%s", num, v)
+		s := fmt.Sprintf("[%d]=%s", num, v)
 		inside = append(inside, s)
 	}
 	if num > 0 {
@@ -227,7 +230,7 @@ type authResp struct {
 //access_token 认证
 //https://api.weixin.qq.com/sns/auth?access_token=ACCESS_TOKEN&openid=OPENID
 func authCheck(openid, access_token string) string {
-	url := strings.fmt("https://api.weixin.qq.com/sns/auth?access_token=%s&openid=%s", access_token, openid)
+	url := fmt.Sprintf("https://api.weixin.qq.com/sns/auth?access_token=%s&openid=%s", access_token, openid)
 	resp, err := http.Get(url)
 	if err != nil {
 		fmt.Printf("get error: %v\n", err)
@@ -240,10 +243,10 @@ func authCheck(openid, access_token string) string {
 		fmt.Printf("body error: %v\n", err)
 		return ERR_1
 	}
-	resp := &authResp{}
-	json.Unmarshal(body, &resp)
-	if resp.Errcode != 0 {
-		fmt.Printf("auth error: %s\n", resp.Errmsg)
+	respBody := &authResp{}
+	json.Unmarshal(body, respBody)
+	if respBody.Errcode != 0 {
+		fmt.Printf("auth error: %s\n", respBody.Errmsg)
 		return ERR_1
 	}
 	retStr := getUserinfo(openid, access_token)
@@ -283,7 +286,7 @@ type userinfoResp struct {
 //获取用户信息
 //https://api.weixin.qq.com/sns/userinfo?access_token=ACCESS_TOKEN&openid=OPENID
 func getUserinfo(openid, access_token string) string {
-	url := strings.fmt("https://api.weixin.qq.com/sns/userinfo?access_token=%s&openid=%s", access_token, openid)
+	url := fmt.Sprintf("https://api.weixin.qq.com/sns/userinfo?access_token=%s&openid=%s", access_token, openid)
 	resp, err := http.Get(url)
 	if err != nil {
 		fmt.Printf("get error: %v\n", err)
@@ -296,20 +299,20 @@ func getUserinfo(openid, access_token string) string {
 		fmt.Printf("body error: %v\n", err)
 		return ERR_2
 	}
-	resp := &userinfoResp{}
-	json.Unmarshal(body, &resp)
-	if resp.Errcode != 0 {
-		fmt.Printf("auth error: %s\n", resp.Errmsg)
+	respBody := &userinfoResp{}
+	json.Unmarshal(body, respBody)
+	if respBody.Errcode != 0 {
+		fmt.Printf("auth error: %s\n", respBody.Errmsg)
 		return ERR_2
 	}
 
 	var strs []string
-	strs = append(strs, resp.Openid)
-	strs = append(strs, resp.Nickname)
-	strsex := strconv.Itoa(resp.Sex)
+	strs = append(strs, respBody.Openid)
+	strs = append(strs, respBody.Nickname)
+	strsex := strconv.Itoa(respBody.Sex)
 	strs = append(strs, strsex)
-	strs = append(strs, resp.Headimgurl)
-	strs = append(strs, resp.Privilege)
-	retStr = strings.Join(strs, ",")
+	strs = append(strs, respBody.Headimgurl)
+	strs = append(strs, respBody.Privilege...)
+	retStr := strings.Join(strs, ",")
 	return retStr
 }
