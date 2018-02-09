@@ -188,14 +188,14 @@ func decode_luatable_argstr(args_str string) []string {
 	return args
 }
 
-func encode_luatable_argstr(str ...string) string {
+func encode_luatable_argstr(str []string) string {
 	num := 0
 	var arr []string
 	arr = append(arr, "{")
 	var inside []string
 	for _, v := range str {
 		num++
-		s := fmt.Sprintf("[%d]=%s", num, v)
+		s := fmt.Sprintf("[%d]=\"%s\"", num, v)
 		inside = append(inside, s)
 	}
 	if num > 0 {
@@ -313,6 +313,6 @@ func getUserinfo(openid, access_token string) string {
 	strs = append(strs, strsex)
 	strs = append(strs, respBody.Headimgurl)
 	strs = append(strs, respBody.Privilege...)
-	retStr := strings.Join(strs, ",")
+	retStr := encode_luatable_argstr(strs)
 	return retStr
 }
