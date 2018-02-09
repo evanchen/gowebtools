@@ -1,11 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	zmq "github.com/pebbe/zmq4"
-	"strings"
-	//"strconv"
+	"http"
+	"ioutil"
 	"os"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -14,6 +18,7 @@ var g_sendsocks = make(map[string]*zmq.Socket)
 var g_msgId = int(0)
 var selfAddr string
 var enginType = "webserv"
+var mutex sync.Mutex
 
 //消息请求类型
 var SEND_TYPE_REQ = "REQ"   //请求
@@ -21,8 +26,6 @@ var SEND_TYPE_RESP = "RESP" //返回请求
 
 func StartZmq() {
 	//对端zmq地址
-	//servPort := g_conf["servPort"]
-	//portInt, _ := strconv.ParseInt(servPort, 10, 32)
 	tarAddr := g_conf["game_ipc_bind_addr_linux_fmt"]
 	tarAddr = fmt.Sprintf(tarAddr, 0)
 	tarAddr = strings.TrimPrefix(tarAddr, "\"")
@@ -95,7 +98,7 @@ func recv() bool {
 		}
 
 		if rpcFuncName == "doFunc" {
-			doFunc(args_str, addr)
+			go doFunc(args_str, addr)
 		}
 
 	} else if sendType == SEND_TYPE_RESP {
@@ -108,6 +111,8 @@ func recv() bool {
 //go这一端暂不支持rpc返回值
 //发送方作为 dealer,不用发送identity
 func send(addr, rpcFuncName, args string) {
+	defer mutex.Unlock()
+	mutex.Lock()
 	peerSock, ok := g_sendsocks[addr]
 	if !ok {
 		newSocket, err := zmq.NewSocket(zmq.DEALER)
@@ -154,8 +159,157 @@ func closingAllSocks() {
 //完成对端的rpc操作,并返回操作结果
 func doFunc(args_str, addr string) {
 	println("doFunc:", args_str, addr)
-
+	args := decode_luatable_argstr(args_str)
+	retStr := realDo(args...)
 	if len(addr) > 0 {
-		send(addr, "DOCMD:HandleWebServRet", args_str)
+		//需要加锁
+		send(addr, "DOCMD:HandleWebServRet", retStr)
 	}
+}
+
+func decode_luatable_argstr(args_str string) []string {
+	var args []string
+	if strings.HasPrefix(args_str, "{") { //是lua table格式转换来的str
+		//格式举例, args_str = {[1]="asd",[2]="3",}
+		args_str = strings.TrimPrefix(args_str, "{")
+		args_str = strings.TrimSuffix(args_str, "}")
+		elem := strings.Split(args_str, ",")
+		for _, v := range elem {
+			kv := strings.Split(v, "=")
+			//去value部分
+			args = append(args, kv[1])
+		}
+	} else {
+		args = append(args, args_str)
+	}
+	return args
+}
+
+func encode_luatable_argstr(str ...string) string {
+	num := 0
+	var arr []string
+	arr = append(arr, "{")
+	var inside []string
+	for _, v := range str {
+		num++
+		s := fmt.Printf("[%d]=%s", num, v)
+		inside = append(inside, s)
+	}
+	if num > 0 {
+		s := strings.Join(inside, ",")
+		arr = append(arr, s)
+	}
+	arr = append(arr, "}")
+	ret := strings.Join(arr, "")
+	return ret
+}
+
+func realDo(reqType, openid, access_token string) string {
+	var retStr string
+	if reqType == "authcheck" {
+		retStr = authCheck(openid, access_token)
+	}
+	return retStr
+}
+
+var ERR_1 = "AUTH_ERROR"
+var ERR_2 = "USERINFO_ERROR"
+
+// {
+// "errcode":40003,"errmsg":"invalid openid"
+// }
+
+type authResp struct {
+	Errcode int    `json:"errcode"`
+	Errmsg  string `json:"errmsg"`
+}
+
+//access_token 认证
+//https://api.weixin.qq.com/sns/auth?access_token=ACCESS_TOKEN&openid=OPENID
+func authCheck(openid, access_token string) string {
+	url := strings.fmt("https://api.weixin.qq.com/sns/auth?access_token=%s&openid=%s", access_token, openid)
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Printf("get error: %v\n", err)
+		return ERR_1
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("body error: %v\n", err)
+		return ERR_1
+	}
+	resp := &authResp{}
+	json.Unmarshal(body, &resp)
+	if resp.Errcode != 0 {
+		fmt.Printf("auth error: %s\n", resp.Errmsg)
+		return ERR_1
+	}
+	retStr := getUserinfo(openid, access_token)
+	return retStr
+}
+
+// {
+// "openid":"OPENID",
+// "nickname":"NICKNAME",
+// "sex":1,
+// "province":"PROVINCE",
+// "city":"CITY",
+// "country":"COUNTRY",
+// "headimgurl": "http://wx.qlogo.cn/mmopen/g3MonUZtNHkdmzicIlibx6iaFqAc56vxLSUfpb6n5WKSYVY0ChQKkiaJSgQ1dZuTOgvLLrhJbERQQ4eMsv84eavHiaiceqxibJxCfHe/0",
+// "privilege":[
+// "PRIVILEGE1",
+// "PRIVILEGE2"
+// ],
+// "unionid": " o6_bmasdasdsad6_2sgVt7hMZOPfL"
+
+// }
+
+type userinfoResp struct {
+	Openid     string   `json:"openid"`
+	Nickname   string   `json:"nickname"`
+	Sex        int      `json:"sex"`
+	Province   string   `json:"province"`
+	City       string   `json:"city"`
+	Country    string   `json:"country"`
+	Headimgurl string   `json:"headimgurl"`
+	Privilege  []string `json:"privilege"`
+	Unionid    string   `json:"unionid"`
+	Errcode    int      `json:"errcode"`
+	Errmsg     string   `json:"errmsg"`
+}
+
+//获取用户信息
+//https://api.weixin.qq.com/sns/userinfo?access_token=ACCESS_TOKEN&openid=OPENID
+func getUserinfo(openid, access_token string) string {
+	url := strings.fmt("https://api.weixin.qq.com/sns/userinfo?access_token=%s&openid=%s", access_token, openid)
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Printf("get error: %v\n", err)
+		return ERR_2
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("body error: %v\n", err)
+		return ERR_2
+	}
+	resp := &userinfoResp{}
+	json.Unmarshal(body, &resp)
+	if resp.Errcode != 0 {
+		fmt.Printf("auth error: %s\n", resp.Errmsg)
+		return ERR_2
+	}
+
+	var strs []string
+	strs = append(strs, resp.Openid)
+	strs = append(strs, resp.Nickname)
+	strsex := strconv.Itoa(resp.Sex)
+	strs = append(strs, strsex)
+	strs = append(strs, resp.Headimgurl)
+	strs = append(strs, resp.Privilege)
+	retStr = strings.Join(strs, ",")
+	return retStr
 }
