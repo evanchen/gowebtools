@@ -15,13 +15,15 @@ func reqSecret(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	ParseConf()
+	CreateLocalLog()
+	httpServPort := fmt.Sprintf(":%s", g_conf["http_serv_port"])
 	//http服务
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
 
 		http.HandleFunc("/reqSecret", reqSecret)
-		err := http.ListenAndServe(":9090", nil)
+		err := http.ListenAndServe(httpServPort, nil)
 		if err != nil {
 			log.Fatal("ListenAndServe: ", err)
 		}
